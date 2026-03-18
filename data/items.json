@@ -5,13 +5,15 @@
             "nombre": "Daga",
             "daño": 4,
             "valor": 10,
-            "vel_ataque": 150
+            "vel_ataque": 150,
+            "sockets": 1
         },
         {
             "id": "espada_corta",
             "nombre": "Espada Corta",
             "daño": 6,
-            "valor": 15
+            "valor": 15,
+            "sockets": 2
         },
         {
             "id": "hacha",
@@ -79,6 +81,29 @@
             "mod_daño": 4,
             "mod_valor": 3.0,
             "evasion": 20
+        }
+    ],
+    "gemas": [
+        {
+            "id": "rubi_menor",
+            "nombre": "Rubí Menor",
+            "tipo": "Gema",
+            "daño": 3,
+            "valor": 50
+        },
+        {
+            "id": "zafiro_menor",
+            "nombre": "Zafiro Menor",
+            "tipo": "Gema",
+            "vel_ataque": 100,
+            "valor": 50
+        },
+        {
+            "id": "esmeralda_menor",
+            "nombre": "Esmeralda Menor",
+            "tipo": "Gema",
+            "evasion": 5,
+            "valor": 50
         }
     ]
 }

@@ -57,6 +57,31 @@ def cargar_fondo(ruta):
     return bg
 
 
+# --- NUEVO: GENERADOR DE GEMAS ---
+def generar_gema_aleatoria():
+    """Selecciona una gema aleatoria de la base de datos y crea el objeto Item."""
+    # Evitamos errores si el JSON de gemas está vacío
+    lista_gemas = db.items_db.get("gemas", [])
+    if not lista_gemas:
+        return Item("Roca Inútil", "Común", 1, "Basura", {})
+
+    gema_data = random.choice(lista_gemas)
+
+    # Extraemos solo las estadísticas de la gema
+    stats_gema = {}
+    for clave, valor in gema_data.items():
+        if clave not in ["id", "nombre", "tipo", "valor"]:
+            stats_gema[clave] = valor
+
+    return Item(
+        nombre=gema_data["nombre"],
+        rareza="Mágico",
+        valor_base=gema_data.get("valor", 50),
+        tipo="Gema",
+        stats=stats_gema,
+    )
+
+
 # =====================================================================
 # NÚCLEO PRINCIPAL (MAIN LOOP)
 # =====================================================================
@@ -65,7 +90,9 @@ async def main():
     heroe = cargar_partida()
     if heroe is None:
         heroe = Player("Guerrero")
-        heroe.equipar(Item("Espada Oxidada", "Común", 5, "Arma", {"daño": 5}))
+        heroe.equipar(
+            Item("Espada Oxidada", "Común", 5, "Arma", {"daño": 5, "sockets": 1})
+        )
 
     # --- 2. VARIABLES DE ESTADO Y PROGRESIÓN ---
     cd_heroe = COOLDOWN_HEROE
@@ -91,7 +118,6 @@ async def main():
         )
 
         if not lista_enemigos:
-            # Fallback en caso de JSON vacío o mal configurado
             enemigo_obj = Enemy("Error del Sistema", 10, 1, 1, 1)
             enemigo_obj.sprite_folder = ""
             return enemigo_obj
@@ -107,7 +133,6 @@ async def main():
             datos["exp"] * nivel_oleada,
             datos["oro"] * nivel_oleada,
         )
-        # Inyectamos la ruta de la carpeta de imágenes que dicta el JSON
         enemigo_obj.sprite_folder = datos.get("sprite_folder", "")
         return enemigo_obj
 
@@ -136,7 +161,6 @@ async def main():
 
         # --- A. ACTUALIZACIÓN DE ANIMACIONES ---
         if tiempo_actual - t_anim > VEL_ANIMACION:
-            # Usamos len() para evitar desbordamientos si una carpeta tiene más o menos frames
             if frames_g:
                 f_g = (f_g + 1) % len(frames_g)
             if frames_h:
@@ -157,7 +181,7 @@ async def main():
                 if event.key == pygame.K_i:
                     in_inventory = not in_inventory
 
-                # LÓGICA DE INVENTARIO
+                # --- LÓGICA DE INVENTARIO ---
                 if in_inventory:
                     if heroe.puntos_talento > 0:
                         if event.key == pygame.K_f:
@@ -170,14 +194,45 @@ async def main():
                     if pygame.K_1 <= event.key <= pygame.K_9:
                         idx = event.key - pygame.K_1
                         if idx < len(heroe.inventario):
-                            if pygame.key.get_mods() & pygame.KMOD_SHIFT:  # Equipar
-                                item = heroe.inventario.pop(idx)
-                                actual = heroe.equipamiento.get(item.tipo)
-                                if actual:
-                                    heroe.inventario.append(actual)
-                                heroe.equipamiento[item.tipo] = item
-                            else:  # Vender
-                                heroe.oro += heroe.inventario.pop(idx).valor_base
+                            # --- NUEVO: LÓGICA PARA ENGARZAR GEMAS O EQUIPAR ---
+                            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                                item_seleccionado = heroe.inventario[idx]
+
+                                # Si es gema, intentar engarzar
+                                if item_seleccionado.tipo == "Gema":
+                                    arma = heroe.equipamiento.get("Arma")
+                                    if arma:
+                                        if len(arma.gemas_equipadas) < arma.sockets:
+                                            # Hay espacio: movemos la gema del inventario al arma
+                                            gema_a_equipar = heroe.inventario.pop(idx)
+                                            arma.gemas_equipadas.append(gema_a_equipar)
+                                            mensaje_accion = (
+                                                f"¡{gema_a_equipar.nombre} engarzada!"
+                                            )
+                                            audio.play(
+                                                "equipar"
+                                            )  # Opcional si tienes el sonido
+                                        else:
+                                            mensaje_accion = "Arma sin huecos libres."
+                                    else:
+                                        mensaje_accion = "Equipa un arma primero."
+
+                                # Si es un arma o armadura normal, equipar
+                                else:
+                                    item = heroe.inventario.pop(idx)
+                                    actual = heroe.equipamiento.get(item.tipo)
+                                    if actual:
+                                        heroe.inventario.append(actual)
+                                    heroe.equipamiento[item.tipo] = item
+                                    mensaje_accion = f"¡{item.nombre} equipado!"
+
+                            # Vender
+                            else:
+                                item_vendido = heroe.inventario.pop(idx)
+                                heroe.oro += item_vendido.valor_base
+                                mensaje_accion = (
+                                    f"Vendido: +{item_vendido.valor_base} oro"
+                                )
 
                     elif event.key == pygame.K_h:  # Herrería
                         arma = heroe.equipamiento.get("Arma")
@@ -190,11 +245,12 @@ async def main():
                                     arma.stats["daño"] = (
                                         int(arma.stats["daño"] * 1.2) + 2
                                     )
+                                    mensaje_accion = "¡Mejora Exitosa!"
+                                else:
+                                    mensaje_accion = "Falló la mejora..."
 
         # --- C. LÓGICA DE COMBATE AUTOMÁTICO ---
         if not in_inventory:
-            # 1. Calculamos la VELOCIDAD DE ATAQUE dinámica
-            # Restamos el bono al cooldown base. El 'max(200, ...)' evita que el héroe ataque a la velocidad de la luz y rompa el juego.
             cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
 
             # Turno de Ataque del Héroe
@@ -208,18 +264,14 @@ async def main():
                 else:
                     audio.play("ataque_heroe")
 
-                # Aplicamos daño al enemigo
                 enemigo_actual.recibir_daño(dmg)
                 vfx.añadir_daño(550, 80, dmg, "enemigo")
 
-                # 2. Aplicamos ROBO DE VIDA
                 robo = heroe.obtener_robo_vida_total()
                 if robo > 0:
                     cura = int(dmg * robo)
                     if cura > 0:
-                        # Curamos sin pasarnos de la vida máxima
                         heroe.hp_actual = min(heroe.hp_max, heroe.hp_actual + cura)
-                        # Reutilizamos los números flotantes para mostrar la curación
                         vfx.añadir_daño(100, 80, cura, "heroe")
 
                 t_ataque_h = tiempo_actual
@@ -231,10 +283,16 @@ async def main():
                         heroe.puntos_talento += 1
                         audio.play("nivel_up")
 
+                    # --- NUEVO: 30% CHANCE DE GEMA, 70% DE ARMA ---
                     if random.randint(1, 100) <= CHANCE_DROP_ITEM:
-                        nuevo_botin = generar_arma_aleatoria()
+                        if random.randint(1, 100) <= 30:
+                            nuevo_botin = generar_gema_aleatoria()
+                            mensaje_botin = f"¡Gema encontrada!: {nuevo_botin.nombre}"
+                        else:
+                            nuevo_botin = generar_arma_aleatoria()
+                            mensaje_botin = f"Botín: {nuevo_botin.nombre}"
+
                         heroe.inventario.append(nuevo_botin)
-                        mensaje_botin = f"Botín: {nuevo_botin.nombre}"
                         audio.play("botin")
 
                     # Gestión de Zonas y Oleadas
@@ -275,21 +333,16 @@ async def main():
                             else f"¡Derrotado! ({enemigos_derrotados % ENEMIGOS_PARA_JEFE}/{ENEMIGOS_PARA_JEFE})"
                         )
 
-                    # Generamos el siguiente enemigo y leemos sus gráficos dinámicamente
                     es_jefe_actual = enemigos_derrotados % ENEMIGOS_PARA_JEFE == 0
                     enemigo_actual = generar_enemigo(es_jefe_actual)
-
                     frames_g = assets.obtener_frames_enemigo(
                         enemigo_actual.sprite_folder
                     )
-                    f_g = 0  # Reiniciamos la animación del nuevo enemigo
+                    f_g = 0
 
             # Turno de Ataque del Enemigo
             elif tiempo_actual - t_ataque_e > COOLDOWN_ENEMIGO:
-                # 3. Aplicamos EVASIÓN
                 probabilidad_esquivar = heroe.obtener_evasion_total()
-
-                # Tirada de dados de 1 a 100
                 if random.randint(1, 100) <= probabilidad_esquivar:
                     mensaje_accion = "¡ESQUIVADO!"
                 else:
@@ -298,10 +351,10 @@ async def main():
                     audio.play("recibir_daño")
 
                 t_ataque_e = tiempo_actual
+
         # --- D. RENDERIZADO (DIBUJO EN PANTALLA) ---
         screen.blit(fondo, (0, 0))
 
-        # Dibujo de Sprites (Solo si hay frames válidos cargados)
         if vfx.flash_heroe % 2 == 0 and frames_h:
             screen.blit(frames_h[f_h], (50, 50))
         if vfx.flash_enemigo % 2 == 0 and frames_g:
@@ -324,7 +377,6 @@ async def main():
             font_normal.render(f"{enemigo_actual.nombre}", True, WHITE), (500, 170)
         )
 
-        # Barras de Vida
         dibujar_barra_vida(screen, 50, 200, heroe.hp_actual, heroe.hp_max, font_pequena)
         dibujar_barra_vida(
             screen,
@@ -337,7 +389,7 @@ async def main():
 
         vfx.update_y_draw(screen)
 
-        # Textos Inferiores (Oro, EXP, Zonas)
+        # Textos Inferiores
         screen.blit(font_normal.render(f"Oro: {heroe.oro}", True, GOLD), (50, 240))
         screen.blit(
             font_normal.render(
@@ -376,11 +428,11 @@ async def main():
             )
             screen.blit(
                 font_normal.render(
-                    "Presiona [1-9] Vender | [SHIFT]+[1-9] Equipar",
+                    "Presiona [1-9] Vender | [SHIFT]+[1-9] Equipar o Engarzar gema",
                     True,
                     (150, 150, 150),
                 ),
-                (100, 110),
+                (50, 110),
             )
 
             y_off = 160
@@ -395,8 +447,12 @@ async def main():
                     if item.rareza == "Raro"
                     else BLUE_INFO if item.rareza == "Mágico" else WHITE
                 )
+                # Mostrar si es una gema para diferenciar visualmente
+                prefijo_texto = "(Gema) " if item.tipo == "Gema" else ""
                 txt = font_normal.render(
-                    f"{i+1}. {item.nombre} ({item.valor_base} Oro)", True, color_r
+                    f"{i+1}. {prefijo_texto}{item.nombre} ({item.valor_base} Oro)",
+                    True,
+                    color_r,
                 )
                 screen.blit(txt, (100, y_off))
                 y_off += 40
@@ -412,19 +468,35 @@ async def main():
                     font_normal.render(
                         f"Eq: {arma.nombre} (+{arma.nivel_mejora})", True, WHITE
                     ),
-                    (465, 210),
+                    (465, 205),
                 )
                 screen.blit(
                     font_normal.render(
-                        f"Daño actual: {arma.stats.get('daño', 0)}", True, GREEN
+                        f"Daño base: {arma.stats.get('daño', 0)}", True, GREEN
                     ),
-                    (465, 250),
+                    (465, 235),
                 )
+
+                # --- NUEVO: MOSTRAR HUECOS EN LA INTERFAZ ---
+                gemas_nombres = (
+                    ", ".join([g.nombre for g in arma.gemas_equipadas])
+                    if arma.gemas_equipadas
+                    else "Ninguna"
+                )
+                screen.blit(
+                    font_pequena.render(
+                        f"Huecos ({len(arma.gemas_equipadas)}/{arma.sockets}): {gemas_nombres}",
+                        True,
+                        BLUE_INFO,
+                    ),
+                    (465, 265),
+                )
+
                 costo = 100 + (arma.nivel_mejora * 50)
                 color_c = GOLD if heroe.oro >= costo else RED
                 screen.blit(
                     font_normal.render(f"Mejorar: {costo} Oro [H]", True, color_c),
-                    (465, 300),
+                    (465, 310),
                 )
             else:
                 screen.blit(

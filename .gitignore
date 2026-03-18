@@ -1,0 +1,11 @@
+# Entornos virtuales (¡Pesan mucho y no se suben!)
+venv/
+env/
+.venv/
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
+
+# Archivos de guardado del jugador (Tu partida no debe ir al código fuente)
+savegame.json

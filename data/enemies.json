@@ -1,0 +1,44 @@
+{
+    "zona_1_bosque": {
+        "comunes": [
+            {
+                "id": "goblin_ladron",
+                "nombre": "Goblin Ladrón",
+                "hp_base": 30,
+                "daño_base": 3,
+                "exp": 10,
+                "oro": 5,
+                "sprite_folder": "assets/01-Idle_/02-Blink/"
+            },
+            {
+                "id": "lobo_rabioso",
+                "nombre": "Lobo Rabioso",
+                "hp_base": 25,
+                "daño_base": 5,
+                "exp": 12,
+                "oro": 2,
+                "sprite_folder": "assets/enemies/"
+            },
+            {
+                "id": "orco_furioso",
+                "nombre": "Orco Furioso",
+                "hp_base": 60,
+                "daño_base": 5,
+                "exp": 12,
+                "oro": 5,
+                "sprite_folder": "assets/02-Wolf/"
+            }
+        ],
+        "jefes": [
+            {
+                "id": "gran_goblin",
+                "nombre": "Gran Goblin",
+                "hp_base": 80,
+                "daño_base": 8,
+                "exp": 50,
+                "oro": 25,
+                "sprite_folder": "assets/01-Idle_/02-Blink/"
+            }
+        ]
+    }
+}

@@ -1,0 +1,84 @@
+{
+    "bases_armas": [
+        {
+            "id": "daga",
+            "nombre": "Daga",
+            "daño": 4,
+            "valor": 10,
+            "vel_ataque": 150
+        },
+        {
+            "id": "espada_corta",
+            "nombre": "Espada Corta",
+            "daño": 6,
+            "valor": 15
+        },
+        {
+            "id": "hacha",
+            "nombre": "Hacha",
+            "daño": 10,
+            "valor": 25,
+            "vel_ataque": -100
+        }
+    ],
+    "prefijos": [
+        {
+            "nombre": "Oxidado(a)",
+            "mod_daño": -2,
+            "mod_valor": 0.5
+        },
+        {
+            "nombre": "Afilado(a)",
+            "mod_daño": 3,
+            "mod_valor": 1.5
+        },
+        {
+            "nombre": "Sanguinario(a)",
+            "mod_daño": 5,
+            "mod_valor": 3.0,
+            "robo_vida": 0.15
+        },
+        {
+            "nombre": "Ágil",
+            "mod_daño": 1,
+            "mod_valor": 2.0,
+            "vel_ataque": 200
+        },
+        {
+            "nombre": "Fantasmal",
+            "mod_daño": 0,
+            "mod_valor": 2.5,
+            "evasion": 15
+        }
+    ],
+    "sufijos": [
+        {
+            "nombre": "del Aprendiz",
+            "mod_daño": 2,
+            "mod_valor": 1.2
+        },
+        {
+            "nombre": "del Oso",
+            "mod_daño": 6,
+            "mod_valor": 2.0
+        },
+        {
+            "nombre": "del Vampiro",
+            "mod_daño": 3,
+            "mod_valor": 3.5,
+            "robo_vida": 0.20
+        },
+        {
+            "nombre": "del Viento",
+            "mod_daño": 2,
+            "mod_valor": 2.5,
+            "vel_ataque": 250
+        },
+        {
+            "nombre": "de las Sombras",
+            "mod_daño": 4,
+            "mod_valor": 3.0,
+            "evasion": 20
+        }
+    ]
+}

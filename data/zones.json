@@ -1,0 +1,14 @@
+{
+    "zona_1": {
+        "id": "zona_1_bosque",
+        "nombre": "Bosque de los Novatos",
+        "fondo_path": "assets/fondo.png",
+        "jefes_para_avanzar": 5
+    },
+    "zona_2": {
+        "id": "zona_2_caverna",
+        "nombre": "Cavernas Profundas",
+        "fondo_path": "assets/fondo_caverna.png",
+        "jefes_para_avanzar": 10
+    }
+}

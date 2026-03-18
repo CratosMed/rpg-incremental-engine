@@ -82,6 +82,19 @@ def generar_gema_aleatoria():
     )
 
 
+# --- Generar inventario del comerciante
+def refrescar_tienda():
+    """Genera 5 objetos aleatorios para el inventario del comerciante."""
+    items = []
+    for _ in range(5):
+        # 20% de probabilidad de vender una gema, 80% de vender un arma
+        if random.randint(1, 100) <= 20:
+            items.append(generar_gema_aleatoria())
+        else:
+            items.append(generar_arma_aleatoria())
+    return items
+
+
 # =====================================================================
 # NÚCLEO PRINCIPAL (MAIN LOOP)
 # =====================================================================
@@ -150,7 +163,8 @@ async def main():
     t_ataque_h, t_ataque_e = 0, 0
     f_g, f_h = 0, 0
     t_anim = 0
-    running, in_inventory = True, False
+    running, in_inventory, in_shop = True, False, False
+    inventario_tienda = refrescar_tienda()
     mensaje_accion, mensaje_botin = "¡Combate!", ""
 
     # =================================================================
@@ -180,6 +194,45 @@ async def main():
 
                 if event.key == pygame.K_i:
                     in_inventory = not in_inventory
+                    if in_inventory:
+                        in_shop = False  # Cierra tienda si abres mochila
+
+                if event.key == pygame.K_c:
+                    in_shop = not in_shop
+                    if in_shop:
+                        in_inventory = False  # Cierra mochila si abres tienda
+
+                # --- LÓGICA DE LA TIENDA ---
+                if in_shop:
+                    if pygame.K_1 <= event.key <= pygame.K_5:
+                        idx = event.key - pygame.K_1
+                        if idx < len(inventario_tienda):
+                            item_compra = inventario_tienda[idx]
+                            precio = (
+                                item_compra.valor_base * 3
+                            )  # El comerciante vende al triple del valor
+
+                            if heroe.oro >= precio:
+                                if len(heroe.inventario) < 9:  # Límite de mochila
+                                    heroe.oro -= precio
+                                    heroe.inventario.append(inventario_tienda.pop(idx))
+                                    mensaje_accion = (
+                                        f"¡Compraste: {item_compra.nombre}!"
+                                    )
+                                    audio.play("botin")
+                                else:
+                                    mensaje_accion = "Tu mochila está llena."
+                            else:
+                                mensaje_accion = "No tienes suficiente oro."
+
+                    elif event.key == pygame.K_r:  # Refrescar tienda
+                        costo_refresh = 50
+                        if heroe.oro >= costo_refresh:
+                            heroe.oro -= costo_refresh
+                            inventario_tienda = refrescar_tienda()
+                            mensaje_accion = "¡El comerciante trajo nueva mercancía!"
+                        else:
+                            mensaje_accion = "Necesitas 50 de oro para refrescar."
 
                 # --- LÓGICA DE INVENTARIO ---
                 if in_inventory:
@@ -250,7 +303,7 @@ async def main():
                                     mensaje_accion = "Falló la mejora..."
 
         # --- C. LÓGICA DE COMBATE AUTOMÁTICO ---
-        if not in_inventory:
+        if not in_inventory and not in_shop:
             cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
 
             # Turno de Ataque del Héroe
@@ -529,7 +582,72 @@ async def main():
                     ),
                     (465, 460),
                 )
+        # --- F. RENDERIZADO DE LA TIENDA (OVERLAY) ---
+        if in_shop:
+            overlay = pygame.Surface((WIDTH, HEIGHT))
+            overlay.set_alpha(220)
+            overlay.fill(
+                (20, 10, 10)
+            )  # Un tono ligeramente rojizo/marrón para la tienda
+            screen.blit(overlay, (0, 0))
 
+            screen.blit(
+                font_grande.render("COMERCIANTE AMBULANTE", True, GOLD),
+                (WIDTH // 2 - 220, 50),
+            )
+            screen.blit(
+                font_normal.render(
+                    "Presiona [1-5] para Comprar | [R] Refrescar (50 Oro)",
+                    True,
+                    (150, 150, 150),
+                ),
+                (50, 110),
+            )
+            screen.blit(
+                font_normal.render(f"Tu Oro: {heroe.oro}", True, GOLD), (600, 110)
+            )
+
+            y_off = 180
+            if len(inventario_tienda) == 0:
+                screen.blit(
+                    font_normal.render(
+                        "El comerciante se quedó sin objetos.", True, (100, 100, 100)
+                    ),
+                    (100, y_off),
+                )
+
+            for i, item in enumerate(inventario_tienda):
+                color_r = (
+                    GOLD
+                    if item.rareza == "Raro"
+                    else BLUE_INFO if item.rareza == "Mágico" else WHITE
+                )
+                prefijo = "(Gema) " if item.tipo == "Gema" else ""
+                precio = item.valor_base * 3
+
+                # Nombre del objeto
+                txt_nombre = font_normal.render(
+                    f"{i+1}. {prefijo}{item.nombre}", True, color_r
+                )
+                screen.blit(txt_nombre, (100, y_off))
+
+                # Precio y stats
+                color_precio = GREEN if heroe.oro >= precio else RED
+                txt_precio = font_normal.render(
+                    f"Precio: {precio} Oro", True, color_precio
+                )
+                screen.blit(txt_precio, (550, y_off))
+
+                # Mostrar el stat principal para saber qué compramos
+                if item.tipo == "Arma":
+                    stat_txt = font_pequena.render(
+                        f"Daño: {item.stats.get('daño', 0)} | Huecos: {item.sockets}",
+                        True,
+                        (200, 200, 200),
+                    )
+                    screen.blit(stat_txt, (140, y_off + 30))
+
+                y_off += 60
         pygame.display.flip()
         await asyncio.sleep(0)  # Necesario para compatibilidad web futura con Pygbag
 

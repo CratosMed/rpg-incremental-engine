@@ -271,3 +271,29 @@ class UIRenderer:
                 self.screen.blit(stat_txt, (140, y_off + 30))
 
             y_off += 60
+
+    def dibujar_menu_principal(self):
+        """Dibuja la pantalla de inicio del juego."""
+        self.screen.fill((10, 10, 15))  # Fondo azul muy oscuro
+
+        # Título del juego
+        titulo = font_grande.render("RPG DATA-DRIVEN", True, GOLD)
+        self.screen.blit(titulo, (WIDTH // 2 - titulo.get_width() // 2, HEIGHT // 3))
+
+        # Subtítulo / Instrucción
+        txt_jugar = font_normal.render(
+            "Haz clic aquí o presiona [ENTER] para Jugar", True, WHITE
+        )
+
+        # Efecto de parpadeo simple (opcional pero le da un toque retro)
+        tiempo = pygame.time.get_ticks()
+        if tiempo % 1000 < 500:  # Se muestra medio segundo sí, medio segundo no
+            self.screen.blit(
+                txt_jugar, (WIDTH // 2 - txt_jugar.get_width() // 2, HEIGHT // 2)
+            )
+
+        # Créditos o versión
+        txt_version = font_pequena.render("v1.0 - Motor Base", True, (100, 100, 100))
+        self.screen.blit(
+            txt_version, (WIDTH // 2 - txt_version.get_width() // 2, HEIGHT - 50)
+        )

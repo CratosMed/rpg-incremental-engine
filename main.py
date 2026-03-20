@@ -89,6 +89,9 @@ async def main():
     nivel_oleada = 1
     es_jefe_actual = False
 
+    # --- NUEVO: MÁQUINA DE ESTADOS FINITA ---
+    estado_juego = "MENU"  # El juego ahora arranca en la pantalla de inicio
+
     # Estados de la UI
     running, in_inventory, in_shop = True, False, False
     inventario_tienda = refrescar_tienda()
@@ -164,39 +167,53 @@ async def main():
                 running = False
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_s and not in_inventory and not in_shop:
-                    guardar_partida(heroe)
-                    mensaje_accion = "¡Partida Guardada!"
+                # -----------------------------------------------------
+                # CONTROLES DEL MENÚ PRINCIPAL
+                # -----------------------------------------------------
+                if estado_juego == "MENU":
+                    if event.key == pygame.K_RETURN:  # ENTER para jugar
+                        estado_juego = "JUGANDO"
+                        t_ataque_h = tiempo_actual  # Previene que el héroe ataque instantáneamente al iniciar
 
-                if event.key == pygame.K_i:
-                    in_inventory = not in_inventory
+                # -----------------------------------------------------
+                # CONTROLES MIENTRAS ESTÁS JUGANDO
+                # -----------------------------------------------------
+                elif estado_juego == "JUGANDO":
+                    if event.key == pygame.K_s and not in_inventory and not in_shop:
+                        guardar_partida(heroe)
+                        mensaje_accion = "¡Partida Guardada!"
+
+                    if event.key == pygame.K_i:
+                        in_inventory = not in_inventory
+                        if in_inventory:
+                            in_shop = False
+
+                    if event.key == pygame.K_c:
+                        in_shop = not in_shop
+                        if in_shop:
+                            in_inventory = False
+
+                    # LÓGICA DE INVENTARIO (TECLADO MANTENIDO POR COMPATIBILIDAD)
                     if in_inventory:
-                        in_shop = False
+                        if heroe.puntos_talento > 0:
+                            if event.key == pygame.K_f:
+                                heroe.crit_chance += 5
+                                heroe.puntos_talento -= 1
+                            elif event.key == pygame.K_g:
+                                cd_heroe = int(cd_heroe * 0.9)
+                                heroe.puntos_talento -= 1
 
-                if event.key == pygame.K_c:
-                    in_shop = not in_shop
-                    if in_shop:
-                        in_inventory = False
-
-                # --- LÓGICA DE INVENTARIO ---
-                if in_inventory:
-                    if heroe.puntos_talento > 0:
-                        if event.key == pygame.K_f:
-                            heroe.crit_chance += 5
-                            heroe.puntos_talento -= 1
-                        elif event.key == pygame.K_g:
-                            cd_heroe = int(cd_heroe * 0.9)
-                            heroe.puntos_talento -= 1
-
-                    if pygame.K_1 <= event.key <= pygame.K_9:
-                        idx = event.key - pygame.K_1
-                        if idx < len(heroe.inventario):
-                            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
-                                item_seleccionado = heroe.inventario[idx]
-                                if item_seleccionado.tipo == "Gema":
-                                    arma = heroe.equipamiento.get("Arma")
-                                    if arma:
-                                        if len(arma.gemas_equipadas) < arma.sockets:
+                        if pygame.K_1 <= event.key <= pygame.K_9:
+                            idx = event.key - pygame.K_1
+                            if idx < len(heroe.inventario):
+                                if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                                    item_seleccionado = heroe.inventario[idx]
+                                    if item_seleccionado.tipo == "Gema":
+                                        arma = heroe.equipamiento.get("Arma")
+                                        if (
+                                            arma
+                                            and len(arma.gemas_equipadas) < arma.sockets
+                                        ):
                                             gema_a_equipar = heroe.inventario.pop(idx)
                                             arma.gemas_equipadas.append(gema_a_equipar)
                                             mensaje_accion = (
@@ -221,99 +238,7 @@ async def main():
                                     f"Vendido: +{item_vendido.valor_base} oro"
                                 )
 
-                    elif event.key == pygame.K_h:
-                        arma = heroe.equipamiento.get("Arma")
-                        if arma:
-                            costo = 100 + (arma.nivel_mejora * 50)
-                            if heroe.oro >= costo:
-                                heroe.oro -= costo
-                                if random.randint(1, 100) <= PROB_EXITO_HERRERIA:
-                                    arma.nivel_mejora += 1
-                                    arma.stats["daño"] = (
-                                        int(arma.stats["daño"] * 1.2) + 2
-                                    )
-                                    mensaje_accion = "¡Mejora Exitosa!"
-                                else:
-                                    mensaje_accion = "Falló la mejora..."
-
-                # --- LÓGICA DE LA TIENDA ---
-                if in_shop:
-                    if pygame.K_1 <= event.key <= pygame.K_5:
-                        idx = event.key - pygame.K_1
-                        if idx < len(inventario_tienda):
-                            item_compra = inventario_tienda[idx]
-                            precio = item_compra.valor_base * 3
-
-                            if heroe.oro >= precio:
-                                if len(heroe.inventario) < 9:
-                                    heroe.oro -= precio
-                                    heroe.inventario.append(inventario_tienda.pop(idx))
-                                    mensaje_accion = (
-                                        f"¡Compraste: {item_compra.nombre}!"
-                                    )
-                                    audio.play("botin")
-                                else:
-                                    mensaje_accion = "Tu mochila está llena."
-                            else:
-                                mensaje_accion = "No tienes suficiente oro."
-
-                    elif event.key == pygame.K_r:
-                        costo_refresh = 50
-                        if heroe.oro >= costo_refresh:
-                            heroe.oro -= costo_refresh
-                            inventario_tienda = refrescar_tienda()
-                            mensaje_accion = "¡El comerciante trajo nueva mercancía!"
-                        else:
-                            mensaje_accion = "Necesitas 50 de oro para refrescar."
-            # --- NUEVO: CONTROLES CON EL RATÓN ---
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # 1 significa "Clic Izquierdo"
-                    mx, my = pygame.mouse.get_pos()  # Obtenemos coordenadas (X, Y)
-
-                    # 1. CLICS EN EL INVENTARIO
-                    if in_inventory:
-                        # Detectar clic en la lista de objetos (x: 100 a 400, y: empieza en 160)
-                        if 100 <= mx <= 400 and 160 <= my < 160 + (
-                            len(heroe.inventario) * 40
-                        ):
-                            # Matemáticas mágicas para saber qué índice tocamos
-                            idx = (my - 160) // 40
-
-                            # Si mantenemos SHIFT mientras hacemos clic: Equipar/Engarzar
-                            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
-                                item_seleccionado = heroe.inventario[idx]
-                                if item_seleccionado.tipo == "Gema":
-                                    arma = heroe.equipamiento.get("Arma")
-                                    if (
-                                        arma
-                                        and len(arma.gemas_equipadas) < arma.sockets
-                                    ):
-                                        gema = heroe.inventario.pop(idx)
-                                        arma.gemas_equipadas.append(gema)
-                                        mensaje_accion = f"¡{gema.nombre} engarzada!"
-                                        audio.play("equipar")
-                                    else:
-                                        mensaje_accion = (
-                                            "Arma sin huecos o no equipada."
-                                        )
-                                else:
-                                    item = heroe.inventario.pop(idx)
-                                    actual = heroe.equipamiento.get(item.tipo)
-                                    if actual:
-                                        heroe.inventario.append(actual)
-                                    heroe.equipamiento[item.tipo] = item
-                                    mensaje_accion = f"¡{item.nombre} equipado!"
-
-                            # Si hacemos un clic normal: Vender
-                            else:
-                                item_vendido = heroe.inventario.pop(idx)
-                                heroe.oro += item_vendido.valor_base
-                                mensaje_accion = (
-                                    f"Vendido: +{item_vendido.valor_base} oro"
-                                )
-
-                        # Detectar clic en el botón "Mejorar" de la Herrería (x: 465-665, y: 310-340)
-                        elif 465 <= mx <= 665 and 310 <= my <= 340:
+                        elif event.key == pygame.K_h:
                             arma = heroe.equipamiento.get("Arma")
                             if arma:
                                 costo = 100 + (arma.nivel_mejora * 50)
@@ -327,26 +252,11 @@ async def main():
                                         mensaje_accion = "¡Mejora Exitosa!"
                                     else:
                                         mensaje_accion = "Falló la mejora..."
-                        # 2. CLICS EN LOS TALENTOS (x: 465-700, y: 450-480 y 490-520)
-                        if heroe.puntos_talento > 0:
-                            if (
-                                465 <= mx <= 700 and 450 <= my <= 480
-                            ):  # Clic en [F] Daño Crítico
-                                heroe.crit_chance += 5
-                                heroe.puntos_talento -= 1
-                            elif (
-                                465 <= mx <= 700 and 490 <= my <= 520
-                            ):  # Clic en [G] Vel. Ataque
-                                cd_heroe = int(cd_heroe * 0.9)
-                                heroe.puntos_talento -= 1
 
-                    # 3. CLICS EN LA TIENDA
-                    elif in_shop:
-                        # Detectar clic en la lista de objetos del comerciante (y: empieza en 180, cada uno ocupa 60px)
-                        if 100 <= mx <= 700 and 180 <= my < 180 + (
-                            len(inventario_tienda) * 60
-                        ):
-                            idx = (my - 180) // 60
+                    # LÓGICA DE LA TIENDA (TECLADO)
+                    if in_shop:
+                        if pygame.K_1 <= event.key <= pygame.K_5:
+                            idx = event.key - pygame.K_1
                             if idx < len(inventario_tienda):
                                 item_compra = inventario_tienda[idx]
                                 precio = item_compra.valor_base * 3
@@ -360,14 +270,13 @@ async def main():
                                         mensaje_accion = (
                                             f"¡Compraste: {item_compra.nombre}!"
                                         )
-                                        audio.play("botin")  # Si tienes sonido
+                                        audio.play("botin")
                                     else:
                                         mensaje_accion = "Tu mochila está llena."
                                 else:
                                     mensaje_accion = "No tienes suficiente oro."
 
-                        # Detectar clic en el texto superior para Refrescar la tienda (x: 50-600, y: 110-140)
-                        elif 50 <= mx <= 600 and 110 <= my <= 140:
+                        elif event.key == pygame.K_r:
                             costo_refresh = 50
                             if heroe.oro >= costo_refresh:
                                 heroe.oro -= costo_refresh
@@ -378,8 +287,127 @@ async def main():
                             else:
                                 mensaje_accion = "Necesitas 50 de oro para refrescar."
 
-        # --- C. LÓGICA DE COMBATE AUTOMÁTICO ---
-        if not in_inventory and not in_shop:
+            # --- CONTROLES CON EL RATÓN ---
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Clic Izquierdo
+                    mx, my = pygame.mouse.get_pos()
+
+                    # -----------------------------------------------------
+                    # CLIC EN EL MENÚ PRINCIPAL
+                    # -----------------------------------------------------
+                    if estado_juego == "MENU":
+                        estado_juego = "JUGANDO"
+                        t_ataque_h = tiempo_actual
+
+                    # -----------------------------------------------------
+                    # CLICS MIENTRAS ESTÁS JUGANDO
+                    # -----------------------------------------------------
+                    elif estado_juego == "JUGANDO":
+                        # 1. CLICS EN EL INVENTARIO
+                        if in_inventory:
+                            if 100 <= mx <= 400 and 160 <= my < 160 + (
+                                len(heroe.inventario) * 40
+                            ):
+                                idx = (my - 160) // 40
+                                if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                                    item_seleccionado = heroe.inventario[idx]
+                                    if item_seleccionado.tipo == "Gema":
+                                        arma = heroe.equipamiento.get("Arma")
+                                        if (
+                                            arma
+                                            and len(arma.gemas_equipadas) < arma.sockets
+                                        ):
+                                            gema = heroe.inventario.pop(idx)
+                                            arma.gemas_equipadas.append(gema)
+                                            mensaje_accion = (
+                                                f"¡{gema.nombre} engarzada!"
+                                            )
+                                            audio.play("equipar")
+                                        else:
+                                            mensaje_accion = (
+                                                "Arma sin huecos o no equipada."
+                                            )
+                                    else:
+                                        item = heroe.inventario.pop(idx)
+                                        actual = heroe.equipamiento.get(item.tipo)
+                                        if actual:
+                                            heroe.inventario.append(actual)
+                                        heroe.equipamiento[item.tipo] = item
+                                        mensaje_accion = f"¡{item.nombre} equipado!"
+                                else:
+                                    item_vendido = heroe.inventario.pop(idx)
+                                    heroe.oro += item_vendido.valor_base
+                                    mensaje_accion = (
+                                        f"Vendido: +{item_vendido.valor_base} oro"
+                                    )
+
+                            elif 465 <= mx <= 665 and 310 <= my <= 340:
+                                arma = heroe.equipamiento.get("Arma")
+                                if arma:
+                                    costo = 100 + (arma.nivel_mejora * 50)
+                                    if heroe.oro >= costo:
+                                        heroe.oro -= costo
+                                        if (
+                                            random.randint(1, 100)
+                                            <= PROB_EXITO_HERRERIA
+                                        ):
+                                            arma.nivel_mejora += 1
+                                            arma.stats["daño"] = (
+                                                int(arma.stats["daño"] * 1.2) + 2
+                                            )
+                                            mensaje_accion = "¡Mejora Exitosa!"
+                                        else:
+                                            mensaje_accion = "Falló la mejora..."
+
+                            # CLICS EN LOS TALENTOS
+                            if heroe.puntos_talento > 0:
+                                if 465 <= mx <= 700 and 450 <= my <= 480:
+                                    heroe.crit_chance += 5
+                                    heroe.puntos_talento -= 1
+                                elif 465 <= mx <= 700 and 490 <= my <= 520:
+                                    cd_heroe = int(cd_heroe * 0.9)
+                                    heroe.puntos_talento -= 1
+
+                        # 2. CLICS EN LA TIENDA
+                        elif in_shop:
+                            if 100 <= mx <= 700 and 180 <= my < 180 + (
+                                len(inventario_tienda) * 60
+                            ):
+                                idx = (my - 180) // 60
+                                if idx < len(inventario_tienda):
+                                    item_compra = inventario_tienda[idx]
+                                    precio = item_compra.valor_base * 3
+
+                                    if heroe.oro >= precio:
+                                        if len(heroe.inventario) < 9:
+                                            heroe.oro -= precio
+                                            heroe.inventario.append(
+                                                inventario_tienda.pop(idx)
+                                            )
+                                            mensaje_accion = (
+                                                f"¡Compraste: {item_compra.nombre}!"
+                                            )
+                                            audio.play("botin")
+                                        else:
+                                            mensaje_accion = "Tu mochila está llena."
+                                    else:
+                                        mensaje_accion = "No tienes suficiente oro."
+
+                            elif 50 <= mx <= 600 and 110 <= my <= 140:
+                                costo_refresh = 50
+                                if heroe.oro >= costo_refresh:
+                                    heroe.oro -= costo_refresh
+                                    inventario_tienda = refrescar_tienda()
+                                    mensaje_accion = (
+                                        "¡El comerciante trajo nueva mercancía!"
+                                    )
+                                else:
+                                    mensaje_accion = (
+                                        "Necesitas 50 de oro para refrescar."
+                                    )
+
+        # --- C. LÓGICA DE COMBATE AUTOMÁTICO (SOLO SI EL ESTADO ES JUGANDO) ---
+        if estado_juego == "JUGANDO" and not in_inventory and not in_shop:
             cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
 
             if tiempo_actual - t_ataque_h > cd_actual_heroe:
@@ -474,37 +502,39 @@ async def main():
 
                 t_ataque_e = tiempo_actual
 
-        # --- D. RENDERIZADO (DIBUJO EN PANTALLA) ---
-        screen.blit(fondo, (0, 0))
+        # --- D. RENDERIZADO (MÁQUINA DE ESTADOS VISUAL) ---
+        if estado_juego == "MENU":
+            ui.dibujar_menu_principal()
 
-        if vfx.flash_heroe % 2 == 0 and frames_h:
-            screen.blit(frames_h[f_h], (50, 50))
-        if vfx.flash_enemigo % 2 == 0 and frames_g:
-            screen.blit(frames_g[f_g], (500, 50))
+        elif estado_juego == "JUGANDO":
+            screen.blit(fondo, (0, 0))
 
-        # El UIRenderer se encarga de dibujar todo el texto y las barras
-        cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
-        ui.dibujar_hud_combate(
-            heroe,
-            enemigo_actual,
-            cd_actual_heroe,
-            COOLDOWN_ENEMIGO,
-            tiempo_actual,
-            t_ataque_h,
-            t_ataque_e,
-            datos_zona_actual,
-            jefe_derrotados_en_zona,
-            mensaje_accion,
-            mensaje_botin,
-        )
+            if vfx.flash_heroe % 2 == 0 and frames_h:
+                screen.blit(frames_h[f_h], (50, 50))
+            if vfx.flash_enemigo % 2 == 0 and frames_g:
+                screen.blit(frames_g[f_g], (500, 50))
 
-        vfx.update_y_draw(screen)
+            cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
+            ui.dibujar_hud_combate(
+                heroe,
+                enemigo_actual,
+                cd_actual_heroe,
+                COOLDOWN_ENEMIGO,
+                tiempo_actual,
+                t_ataque_h,
+                t_ataque_e,
+                datos_zona_actual,
+                jefe_derrotados_en_zona,
+                mensaje_accion,
+                mensaje_botin,
+            )
 
-        # Superposiciones de Menús
-        if in_inventory:
-            ui.dibujar_inventario(heroe)
-        elif in_shop:
-            ui.dibujar_tienda(heroe, inventario_tienda)
+            vfx.update_y_draw(screen)
+
+            if in_inventory:
+                ui.dibujar_inventario(heroe)
+            elif in_shop:
+                ui.dibujar_tienda(heroe, inventario_tienda)
 
         pygame.display.flip()
         await asyncio.sleep(0)

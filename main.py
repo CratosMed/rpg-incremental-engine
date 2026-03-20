@@ -327,6 +327,57 @@ async def main():
                                         mensaje_accion = "¡Mejora Exitosa!"
                                     else:
                                         mensaje_accion = "Falló la mejora..."
+                        # 2. CLICS EN LOS TALENTOS (x: 465-700, y: 450-480 y 490-520)
+                        if heroe.puntos_talento > 0:
+                            if (
+                                465 <= mx <= 700 and 450 <= my <= 480
+                            ):  # Clic en [F] Daño Crítico
+                                heroe.crit_chance += 5
+                                heroe.puntos_talento -= 1
+                            elif (
+                                465 <= mx <= 700 and 490 <= my <= 520
+                            ):  # Clic en [G] Vel. Ataque
+                                cd_heroe = int(cd_heroe * 0.9)
+                                heroe.puntos_talento -= 1
+
+                    # 3. CLICS EN LA TIENDA
+                    elif in_shop:
+                        # Detectar clic en la lista de objetos del comerciante (y: empieza en 180, cada uno ocupa 60px)
+                        if 100 <= mx <= 700 and 180 <= my < 180 + (
+                            len(inventario_tienda) * 60
+                        ):
+                            idx = (my - 180) // 60
+                            if idx < len(inventario_tienda):
+                                item_compra = inventario_tienda[idx]
+                                precio = item_compra.valor_base * 3
+
+                                if heroe.oro >= precio:
+                                    if len(heroe.inventario) < 9:
+                                        heroe.oro -= precio
+                                        heroe.inventario.append(
+                                            inventario_tienda.pop(idx)
+                                        )
+                                        mensaje_accion = (
+                                            f"¡Compraste: {item_compra.nombre}!"
+                                        )
+                                        audio.play("botin")  # Si tienes sonido
+                                    else:
+                                        mensaje_accion = "Tu mochila está llena."
+                                else:
+                                    mensaje_accion = "No tienes suficiente oro."
+
+                        # Detectar clic en el texto superior para Refrescar la tienda (x: 50-600, y: 110-140)
+                        elif 50 <= mx <= 600 and 110 <= my <= 140:
+                            costo_refresh = 50
+                            if heroe.oro >= costo_refresh:
+                                heroe.oro -= costo_refresh
+                                inventario_tienda = refrescar_tienda()
+                                mensaje_accion = (
+                                    "¡El comerciante trajo nueva mercancía!"
+                                )
+                            else:
+                                mensaje_accion = "Necesitas 50 de oro para refrescar."
+
         # --- C. LÓGICA DE COMBATE AUTOMÁTICO ---
         if not in_inventory and not in_shop:
             cd_actual_heroe = max(200, cd_heroe - heroe.obtener_bono_velocidad())
